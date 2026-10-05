@@ -1,0 +1,17 @@
+version: 2
+
+seeds:
+  - name: product_lines
+    description: Reference list of lines of business with pricing targets (synthetic).
+  - name: customers
+    description: Raw customer feed. Contains stale duplicate versions and unclean state codes.
+  - name: policies
+    description: Raw policy issuance records (state at bind). Some product codes are lowercase/padded.
+  - name: policy_changes
+    description: Raw endorsements and cancellations. Contains exact duplicate rows.
+  - name: premiums
+    description: Raw monthly premium installments, written at the start of each coverage month. Some rows re-sent.
+  - name: claims
+    description: Raw first-notice-of-loss / claim header feed. Mixed date formats, stale versions, orphans.
+  - name: claim_payments
+    description: Raw claim payment transactions (indemnity, expense, recovery). Contains exact duplicates.
