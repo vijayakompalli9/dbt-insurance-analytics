@@ -1,0 +1,198 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: Calendar dimension, one row per day 2023-01-01 to 2026-12-31.
+    columns:
+      - name: date_key
+        description: Integer key yyyymmdd.
+        data_tests: [unique, not_null]
+      - name: date_day
+        description: Calendar date.
+        data_tests: [unique, not_null]
+      - name: month_start_date
+        description: First day of the month.
+      - name: iso_day_of_week
+        description: 1 = Monday ... 7 = Sunday.
+        data_tests:
+          - accepted_range:
+              arguments: {min_value: 1, max_value: 7}
+
+  - name: dim_customer
+    description: One row per customer with demographics, tenure and policy counts (Type 1 - latest values).
+    columns:
+      - name: customer_sk
+        description: Surrogate key (hash of customer_id).
+        data_tests: [unique, not_null]
+      - name: customer_id
+        description: Natural key.
+        data_tests: [unique, not_null]
+      - name: customer_name
+        description: Individual full name or business name.
+      - name: age_band
+        description: Age band at the as-of date; 'N/A (business)' for commercial insureds.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['18-29', '30-44', '45-59', '60+', 'N/A (business)']
+      - name: policy_count
+        description: Number of policies ever held.
+        data_tests: [non_negative]
+
+  - name: dim_policy
+    description: >
+      SCD Type 2 policy dimension from the snap_policy snapshot (check strategy).
+      One row per policy version; join facts on
+      `event_date >= effective_from and event_date < effective_to`.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['policy_id', 'version_number']
+    columns:
+      - name: policy_version_sk
+        description: Surrogate key of the policy version (hash of policy_id + dbt_valid_from).
+        data_tests: [unique, not_null]
+      - name: policy_id
+        description: Natural key of the policy (repeats across versions).
+        data_tests: [not_null]
+      - name: customer_sk
+        description: Policyholder.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_sk
+      - name: policy_status
+        description: Lifecycle status of this version.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ACTIVE', 'CANCELLED', 'EXPIRED']
+      - name: annual_premium
+        description: Annual premium in force for this version, dollars.
+        data_tests: [not_null, non_negative]
+      - name: effective_from
+        description: Business date this version took effect (first version back-dated to policy effective date).
+        data_tests: [not_null]
+      - name: effective_to
+        description: Exclusive end of this version; 9999-12-31 for the current version.
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "effective_to > effective_from"
+      - name: is_current
+        description: True for the latest version of each policy.
+        data_tests: [not_null]
+
+  - name: fct_claims
+    description: One row per valid claim with paid, reserve and incurred amounts and the policy version in force at loss.
+    columns:
+      - name: claim_sk
+        description: Surrogate key of the claim.
+        data_tests: [unique, not_null]
+      - name: claim_id
+        description: Natural key.
+        data_tests: [unique, not_null]
+      - name: policy_version_sk
+        description: Policy version in force on the loss date.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_policy')
+                field: policy_version_sk
+      - name: customer_sk
+        description: Policyholder.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_sk
+      - name: loss_date_key
+        description: dim_date key of the loss date.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: claim_status
+        description: OPEN or CLOSED.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['OPEN', 'CLOSED']
+      - name: case_reserve
+        description: Outstanding case reserve.
+        data_tests: [not_null, non_negative]
+      - name: net_paid
+        description: Indemnity + expense - recoveries paid to date.
+      - name: incurred_loss
+        description: net_paid + case_reserve (reported incurred, excludes IBNR).
+        data_tests: [not_null]
+      - name: closed_date
+        description: Date the claim closed; null while open.
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "(claim_status = 'OPEN' and closed_date is null) or (claim_status = 'CLOSED' and closed_date >= reported_date)"
+
+  - name: fct_claim_payments
+    description: >
+      Incremental fact of claim payment transactions (merge on payment_id with a
+      var('payments_lookback_days') lookback on _loaded_at for late re-sends).
+    columns:
+      - name: payment_sk
+        description: Surrogate key of the payment.
+        data_tests: [unique, not_null]
+      - name: payment_id
+        description: Natural key.
+        data_tests: [unique, not_null]
+      - name: claim_id
+        description: Claim the payment belongs to.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('fct_claims')
+                field: claim_id
+      - name: payment_type
+        description: INDEMNITY, EXPENSE or RECOVERY.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['INDEMNITY', 'EXPENSE', 'RECOVERY']
+      - name: payment_amount
+        description: Signed amount in dollars.
+        data_tests: [not_null]
+      - name: dbt_loaded_at
+        description: When this row was (re)processed by dbt.
+
+  - name: fct_premium_earned
+    description: Written and earned premium at policy x calendar-month grain, with running totals.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['policy_id', 'calendar_month']
+    columns:
+      - name: premium_month_sk
+        description: Surrogate key (policy_id + calendar_month).
+        data_tests: [unique, not_null]
+      - name: customer_sk
+        description: Policyholder.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_sk
+      - name: calendar_month
+        description: First day of the calendar month.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: written_premium
+        description: Premium written in the month (installments whose coverage starts in the month).
+        data_tests: [not_null, non_negative]
+      - name: earned_premium
+        description: Premium earned in the month, pro-rata by day.
+        data_tests: [not_null, non_negative]

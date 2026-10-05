@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: mart_loss_ratio_monthly
+    description: >
+      Finance/actuarial loss ratio mart: one row per product line per calendar month
+      from Jan 2024 to the as-of month (zero-filled). Paid loss ratio is calendar-month
+      basis; incurred loss ratio is accident-month basis (reported incurred, no IBNR).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['product_line_code', 'calendar_month']
+    columns:
+      - name: loss_ratio_month_sk
+        description: Surrogate key (product line + month).
+        data_tests: [unique, not_null]
+      - name: product_line_code
+        description: Line of business.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_product_lines')
+                field: product_line_code
+      - name: written_premium
+        description: Premium written in the month.
+        data_tests: [non_negative]
+      - name: earned_premium
+        description: Premium earned in the month.
+        data_tests: [non_negative]
+      - name: paid_loss
+        description: Net claim payments made in the month (indemnity + expense - recoveries).
+      - name: incurred_loss
+        description: Net paid to date + case reserve for losses occurring in the month.
+      - name: paid_loss_ratio
+        description: paid_loss / earned_premium (null when nothing earned).
+      - name: incurred_loss_ratio
+        description: incurred_loss / earned_premium (null when nothing earned).
+      - name: rolling_12m_loss_ratio
+        description: Trailing-12-month incurred / earned; the headline KPI on the dashboard.
+      - name: rolling_12m_variance_to_target
+        description: rolling_12m_loss_ratio minus the line's pricing target loss ratio.
+
+unit_tests:
+  - name: test_earned_premium_prorates_across_months_and_stops_at_cancellation
+    description: >
+      A 15 Jan - 15 Feb installment of $310 earns 17/31 in January and 14/31 in
+      February; a policy cancelled on 10 Mar earns only 9 of 31 days of its
+      1 Mar installment.
+    model: int_premium_earned_monthly
+    overrides:
+      vars: {as_of_date: "2025-12-31"}
+    given:
+      - input: ref('stg_premiums')
+        rows:
+          - {premium_id: A-01, policy_id: A, coverage_start_date: 2025-01-15, coverage_end_date: 2025-02-15, written_premium: 310.00}
+          - {premium_id: B-01, policy_id: B, coverage_start_date: 2025-03-01, coverage_end_date: 2025-04-01, written_premium: 310.00}
+      - input: ref('stg_policies')
+        rows:
+          - {policy_id: A, product_line_code: HOME}
+          - {policy_id: B, product_line_code: PAUTO}
+      - input: ref('int_policy_versions')
+        rows:
+          - {policy_id: A, cancellation_date: null}
+          - {policy_id: B, cancellation_date: 2025-03-10}
+    expect:
+      rows:
+        - {premium_id: A-01, calendar_month: 2025-01-01, written_premium: 310.00, earned_premium: 170.00}
+        - {premium_id: A-01, calendar_month: 2025-02-01, written_premium: 0.00, earned_premium: 140.00}
+        - {premium_id: B-01, calendar_month: 2025-03-01, written_premium: 310.00, earned_premium: 90.00}

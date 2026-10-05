@@ -1,0 +1,33 @@
+version: 2
+
+exposures:
+  - name: loss_ratio_dashboard
+    label: Loss Ratio & Claims Operations Dashboard
+    type: dashboard
+    maturity: medium
+    url: https://bi.example.com/dashboards/loss-ratio  # placeholder BI URL
+    description: >
+      Monthly finance/actuarial review: earned premium, paid and incurred loss
+      ratios by product line versus pricing target, plus the open-claim aging
+      inventory for claims operations.
+    depends_on:
+      - ref('mart_loss_ratio_monthly')
+      - ref('mart_claims_aging')
+      - ref('fct_claims')
+      - ref('dim_date')
+    owner:
+      name: Finance Analytics (fictional)
+      email: finance-analytics@northwind-mutual.example.com
+
+  - name: actuarial_reserving_extract
+    label: Actuarial Reserving Extract
+    type: analysis
+    maturity: low
+    description: Claim-level extract used by actuaries to build loss development triangles.
+    depends_on:
+      - ref('fct_claims')
+      - ref('fct_claim_payments')
+      - ref('dim_policy')
+    owner:
+      name: Actuarial (fictional)
+      email: actuarial@northwind-mutual.example.com
