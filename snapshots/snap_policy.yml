@@ -1,0 +1,25 @@
+snapshots:
+  - name: snap_policy
+    description: >
+      SCD Type 2 history of policy state, captured with the `check` strategy over
+      the business-relevant columns. `updated_at` is set to the business change
+      timestamp so dbt_valid_from reflects when the change took effect rather
+      than when the snapshot happened to run.
+    relation: ref('int_policy_state_as_of')
+    config:
+      schema: snapshots
+      unique_key: policy_id
+      strategy: check
+      check_cols:
+        - annual_premium
+        - coverage_limit
+        - deductible
+        - policy_status
+      updated_at: state_updated_at
+      hard_deletes: ignore
+    columns:
+      - name: policy_id
+        description: Natural key of the policy.
+        data_tests: [not_null]
+      - name: dbt_scd_id
+        data_tests: [unique, not_null]

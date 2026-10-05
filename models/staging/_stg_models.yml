@@ -1,0 +1,196 @@
+version: 2
+
+models:
+  - name: stg_product_lines
+    description: Line-of-business reference data, codes normalised to upper case.
+    columns:
+      - name: product_line_code
+        description: Short code for the line of business (PAUTO, HOME, RENT, CPROP, GLIAB).
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['PAUTO', 'HOME', 'RENT', 'CPROP', 'GLIAB']
+      - name: line_of_business
+        description: Personal or Commercial.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Personal', 'Commercial']
+      - name: target_loss_ratio
+        description: Pricing target loss ratio used for variance reporting.
+        data_tests:
+          - accepted_range:
+              arguments: {min_value: 0, max_value: 1.5}
+
+  - name: stg_customers
+    description: One row per customer (latest version from the feed); email lower-cased, state trimmed/upper-cased.
+    columns:
+      - name: customer_id
+        description: Natural key of the customer.
+        data_tests: [unique, not_null]
+      - name: customer_type
+        description: INDIVIDUAL for personal-lines customers, BUSINESS for commercial insureds.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['INDIVIDUAL', 'BUSINESS']
+      - name: state_code
+        description: Two-letter US state code (cleaned).
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "length(state_code) = 2"
+      - name: email
+        description: Contact email, lower-cased. Synthetic example.com addresses only.
+
+  - name: stg_policies
+    description: One row per policy as bound; dates parsed, cents converted to dollars, codes normalised.
+    columns:
+      - name: policy_id
+        description: Natural key of the policy.
+        data_tests: [unique, not_null]
+      - name: customer_id
+        description: Policyholder.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: product_line_code
+        description: Line of business (cleaned of case/whitespace issues).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_product_lines')
+                field: product_line_code
+      - name: effective_date
+        description: Policy term start (inclusive).
+        data_tests: [not_null]
+      - name: expiration_date
+        description: Policy term end (exclusive).
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "expiration_date > effective_date"
+      - name: bound_annual_premium
+        description: Annual premium at bind, in dollars.
+        data_tests: [not_null, non_negative]
+      - name: sales_channel
+        description: Distribution channel.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['AGENT', 'DIRECT', 'BROKER']
+
+  - name: stg_policy_changes
+    description: Deduplicated endorsement and cancellation transactions. Null new_* columns mean "unchanged".
+    columns:
+      - name: change_id
+        description: Natural key of the change transaction.
+        data_tests: [unique, not_null]
+      - name: policy_id
+        description: Policy the change applies to.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_policies')
+                field: policy_id
+      - name: change_type
+        description: ENDORSEMENT or CANCELLATION.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ENDORSEMENT', 'CANCELLATION']
+
+  - name: stg_premiums
+    description: Deduplicated monthly premium installments (latest re-send wins).
+    columns:
+      - name: premium_id
+        description: Natural key, policy_id + installment number.
+        data_tests: [unique, not_null]
+      - name: policy_id
+        description: Policy the installment belongs to.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_policies')
+                field: policy_id
+      - name: written_premium
+        description: Installment amount written at coverage start, in dollars.
+        data_tests: [not_null, non_negative]
+      - name: coverage_end_date
+        description: Exclusive end of the coverage month.
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "coverage_end_date > coverage_start_date"
+
+  - name: stg_claims
+    description: >
+      Latest version of each claim header. Dates parsed from mixed formats,
+      reported_date floored at loss_date, negative reserves floored at zero.
+      Orphan claims (unknown policy) are kept here and flagged by a warn test.
+    columns:
+      - name: claim_id
+        description: Natural key of the claim.
+        data_tests: [unique, not_null]
+      - name: policy_id
+        description: Policy the claim was made against. Known upstream issue - a few reference non-existent policies.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_policies')
+                field: policy_id
+              config:
+                severity: warn
+      - name: loss_date
+        description: Date the loss occurred (parsed; null would mean an unparseable format).
+        data_tests: [not_null]
+      - name: reported_date
+        description: Date first reported to the insurer, never earlier than loss_date.
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "reported_date >= loss_date"
+      - name: claim_status
+        description: OPEN or CLOSED (normalised).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['OPEN', 'CLOSED']
+      - name: case_reserve
+        description: Outstanding case reserve in dollars (zero for closed claims).
+        data_tests: [not_null, non_negative]
+
+  - name: stg_claim_payments
+    description: Deduplicated claim payment transactions. Recoveries carry negative amounts.
+    columns:
+      - name: payment_id
+        description: Natural key of the payment.
+        data_tests: [unique, not_null]
+      - name: claim_id
+        description: Claim the payment belongs to.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_claims')
+                field: claim_id
+      - name: payment_type
+        description: INDEMNITY, EXPENSE (allocated loss adjustment expense) or RECOVERY (salvage/subrogation).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['INDEMNITY', 'EXPENSE', 'RECOVERY']
+      - name: payment_amount
+        description: Signed amount in dollars; negative only for recoveries.
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "(payment_type = 'RECOVERY' and payment_amount <= 0) or (payment_type <> 'RECOVERY' and payment_amount >= 0)"

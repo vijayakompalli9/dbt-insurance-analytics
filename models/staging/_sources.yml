@@ -1,0 +1,46 @@
+version: 2
+
+sources:
+  - name: northwind_raw
+    description: >
+      Raw landing zone for Northwind Mutual Insurance (fictional). Locally these
+      tables are loaded by `dbt seed`; in a warehouse they would be landed by an
+      EL tool. Override the schema with `--vars '{raw_schema: RAW}'`.
+    schema: "{{ var('raw_schema', target.schema ~ '_raw') }}"
+    loader: dbt seed (local) / EL tool (warehouse)
+    config:
+      loaded_at_field: _loaded_at
+      freshness:
+        warn_after: {count: 2, period: day}
+        error_after: {count: 7, period: day}
+    tables:
+      - name: product_lines
+        description: Line-of-business reference data.
+        config:
+          freshness: null  # static reference data
+        columns:
+          - name: product_line_code
+            data_tests: [unique, not_null]
+      - name: customers
+        description: Customer master feed; may contain multiple versions per customer_id.
+      - name: policies
+        description: Policy issuance records as bound.
+        columns:
+          - name: policy_id
+            data_tests: [not_null]
+      - name: policy_changes
+        description: Endorsement and cancellation transactions.
+      - name: premiums
+        description: Monthly written-premium installments.
+      - name: claims
+        description: Claim header feed (latest version wins).
+        config:
+          freshness:
+            warn_after: {count: 1, period: day}
+            error_after: {count: 3, period: day}
+      - name: claim_payments
+        description: Claim payment transactions; append-only feed with occasional re-sends.
+        config:
+          freshness:
+            warn_after: {count: 1, period: day}
+            error_after: {count: 3, period: day}
