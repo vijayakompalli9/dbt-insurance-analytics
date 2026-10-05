@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: mart_claims_aging
+    description: >
+      Claims-operations aging mart: open claims as of var('as_of_date') bucketed by
+      days since report, one row per product line x bucket (zero-filled).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['product_line_code', 'aging_bucket']
+    columns:
+      - name: aging_sk
+        description: Surrogate key (product line + bucket).
+        data_tests: [unique, not_null]
+      - name: aging_bucket
+        description: Days-open band.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['0-30 days', '31-90 days', '91-180 days', '181-365 days', '365+ days']
+      - name: bucket_order
+        description: Sort order for the bucket (1 = youngest).
+      - name: open_claim_count
+        description: Number of open claims in the bucket.
+        data_tests: [not_null, non_negative]
+      - name: case_reserve
+        description: Total outstanding case reserve.
+        data_tests: [non_negative]
+      - name: avg_days_open
+        description: Mean days since report for claims in the bucket (null when empty).
+
+unit_tests:
+  - name: test_claims_aging_buckets_open_claims_only
+    description: Open claims land in the right bucket; closed claims are ignored; empty buckets are zero-filled.
+    model: mart_claims_aging
+    overrides:
+      vars: {as_of_date: "2025-12-31"}
+    given:
+      - input: ref('stg_product_lines')
+        rows:
+          - {product_line_code: HOME, product_line_name: Homeowners}
+      - input: ref('fct_claims')
+        rows:
+          - {claim_id: c1, product_line_code: HOME, is_open: true, days_open: 10, case_reserve: 100, net_paid: 0, incurred_loss: 100}
+          - {claim_id: c2, product_line_code: HOME, is_open: true, days_open: 31, case_reserve: 200, net_paid: 50, incurred_loss: 250}
+          - {claim_id: c3, product_line_code: HOME, is_open: false, days_open: 5, case_reserve: 0, net_paid: 900, incurred_loss: 900}
+    expect:
+      rows:
+        - {aging_bucket: '0-30 days', open_claim_count: 1, case_reserve: 100}
+        - {aging_bucket: '31-90 days', open_claim_count: 1, case_reserve: 200}
+        - {aging_bucket: '91-180 days', open_claim_count: 0, case_reserve: 0}
+        - {aging_bucket: '181-365 days', open_claim_count: 0, case_reserve: 0}
+        - {aging_bucket: '365+ days', open_claim_count: 0, case_reserve: 0}
