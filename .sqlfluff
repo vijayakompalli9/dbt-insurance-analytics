@@ -1,0 +1,36 @@
+[sqlfluff]
+templater = dbt
+dialect = duckdb
+max_line_length = 120
+# Rules intentionally relaxed for readable analytics SQL:
+#   AM04 (select *): CTEs over well-tested staging models
+#   ST06 (column order): we order columns by business meaning, not by type
+#   RF04 (keywords as identifiers): e.g. `month` columns from warehouse functions
+#   LT05 (line length): measured on *rendered* SQL, so dbt cross-db macro expansions
+#        (datediff, dateadd, hash) trip it even when the source line is short
+exclude_rules = AM04, ST06, RF04, LT05
+large_file_skip_byte_limit = 40000
+
+[sqlfluff:templater:dbt]
+project_dir = .
+profiles_dir = .
+profile = insurance_analytics
+
+[sqlfluff:indentation]
+tab_space_size = 4
+implicit_indents = allow
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = lower
+
+[sqlfluff:rules:aliasing.table]
+aliasing = explicit
+
+[sqlfluff:rules:aliasing.column]
+aliasing = explicit

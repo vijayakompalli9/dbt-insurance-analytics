@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "insurance-analytics"
+version = "0.1.0"
+description = "Helper scripts for a dbt insurance analytics project (Northwind Mutual Insurance, fictional)."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Vijaya Lakshmi Kompalli" }]
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "N", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["e2e: requires the dbt-built DuckDB warehouse (built automatically if missing)"]

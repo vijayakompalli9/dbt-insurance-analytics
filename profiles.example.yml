@@ -1,0 +1,39 @@
+# Example dbt profile. Copy to ~/.dbt/profiles.yml (or keep it project-local and
+# pass --profiles-dir .). Never commit real credentials: every secret below is read
+# from an environment variable via env_var(); see .env.example for the names.
+insurance_analytics:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    # Default: local DuckDB file, no network, no credentials.
+    dev:
+      type: duckdb
+      path: "{{ env_var('DBT_DUCKDB_PATH', 'warehouse/insurance.duckdb') }}"
+      schema: analytics
+      threads: 4
+
+    # --- Snowflake (requires: pip install dbt-snowflake) -------------------------
+    # snowflake:
+    #   type: snowflake
+    #   account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+    #   user: "{{ env_var('SNOWFLAKE_USER') }}"
+    #   password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+    #   # Prefer key-pair auth in production:
+    #   # private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+    #   role: "{{ env_var('SNOWFLAKE_ROLE', 'TRANSFORMER') }}"
+    #   warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'TRANSFORMING') }}"
+    #   database: "{{ env_var('SNOWFLAKE_DATABASE', 'ANALYTICS') }}"
+    #   schema: "{{ env_var('SNOWFLAKE_SCHEMA', 'DBT_DEV') }}"
+    #   threads: 8
+
+    # --- Databricks (requires: pip install dbt-databricks) -----------------------
+    # databricks:
+    #   type: databricks
+    #   host: "{{ env_var('DATABRICKS_HOST') }}"
+    #   http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+    #   token: "{{ env_var('DATABRICKS_TOKEN') }}"
+    #   catalog: "{{ env_var('DATABRICKS_CATALOG', 'main') }}"
+    #   schema: "{{ env_var('DATABRICKS_SCHEMA', 'dbt_dev') }}"
+    #   threads: 8
+
+    # Name a production target `prod` so generate_schema_name uses custom schema
+    # names verbatim (raw, staging, marts ...) instead of prefixing them.

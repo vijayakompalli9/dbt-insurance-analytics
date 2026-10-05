@@ -1,0 +1,15 @@
+# Project-local, credential-free profile so `dbt build --profiles-dir .` works offline.
+# Cloud targets (Snowflake / Databricks) are documented in profiles.example.yml.
+insurance_analytics:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DBT_DUCKDB_PATH', 'warehouse/insurance.duckdb') }}"
+      schema: analytics
+      threads: 4
+    ci:
+      type: duckdb
+      path: "{{ env_var('DBT_DUCKDB_PATH', 'warehouse/insurance.duckdb') }}"
+      schema: analytics
+      threads: 4

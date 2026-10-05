@@ -1,0 +1,31 @@
+# dbt
+target/
+dbt_packages/
+logs/
+*.duckdb
+*.duckdb.wal
+warehouse/*
+!warehouse/.gitkeep
+.user.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+profiles.local.yml
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

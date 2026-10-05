@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest==9.1.1
+ruff==0.16.10
+sqlfluff==4.3.0
+sqlfluff-templater-dbt==4.3.0

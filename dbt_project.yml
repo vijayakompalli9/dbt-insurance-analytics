@@ -1,0 +1,97 @@
+name: insurance_analytics
+version: "0.1.0"
+config-version: 2
+profile: insurance_analytics
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+macro-paths: ["macros"]
+# dbt data tests live in data_tests/ so that tests/ is free for pytest.
+test-paths: ["data_tests"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+vars:
+  # Business "as of" date. Fixed so the synthetic portfolio is reproducible;
+  # override per run: dbt build --vars '{as_of_date: 2025-06-30}'
+  as_of_date: "2025-12-31"
+  # Incremental lookback for late-arriving claim payments.
+  payments_lookback_days: 3
+  # Earned premium below this (dollars) is not credible for loss-ratio bounds checks.
+  min_credible_earned_premium: 25000
+
+seeds:
+  insurance_analytics:
+    +schema: raw
+    +quote_columns: false
+    product_lines:
+      +column_types:
+        target_loss_ratio: decimal(5,3)
+    customers:
+      +column_types:
+        date_of_birth: varchar
+        customer_since: varchar
+        _loaded_at: timestamp
+    policies:
+      +column_types:
+        effective_date: varchar
+        expiration_date: varchar
+        annual_premium_cents: bigint
+        coverage_limit_cents: bigint
+        deductible_cents: bigint
+        _loaded_at: timestamp
+    policy_changes:
+      +column_types:
+        change_effective_date: varchar
+        new_annual_premium_cents: bigint
+        new_coverage_limit_cents: bigint
+        new_deductible_cents: bigint
+        _loaded_at: timestamp
+    premiums:
+      +column_types:
+        coverage_start_date: varchar
+        coverage_end_date: varchar
+        written_premium_cents: bigint
+        _loaded_at: timestamp
+    claims:
+      # Raw claim dates arrive in mixed formats; keep them as text and parse in staging.
+      +column_types:
+        loss_date: varchar
+        reported_date: varchar
+        closed_date: varchar
+        case_reserve_cents: bigint
+        _loaded_at: timestamp
+    claim_payments:
+      +column_types:
+        payment_date: varchar
+        amount_cents: bigint
+        _loaded_at: timestamp
+
+snapshots:
+  insurance_analytics:
+    +schema: snapshots
+
+models:
+  insurance_analytics:
+    staging:
+      +schema: staging
+      +materialized: view
+      +tags: ["staging"]
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+      +tags: ["intermediate"]
+    marts:
+      +schema: marts
+      +materialized: table
+      +tags: ["marts"]
+      finance:
+        +tags: ["finance"]
+      claims:
+        +tags: ["claims"]
+
+data_tests:
+  insurance_analytics:
+    +severity: error
