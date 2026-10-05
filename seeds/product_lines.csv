@@ -1,0 +1,6 @@
+product_line_code,product_line_name,line_of_business,target_loss_ratio,is_active
+PAUTO,Personal Auto,Personal,0.68,true
+HOME,Homeowners,Personal,0.58,true
+RENT,Renters,Personal,0.5,true
+CPROP,Commercial Property,Commercial,0.55,true
+GLIAB,General Liability,Commercial,0.62,true
