@@ -1,0 +1,4 @@
+policy_id,version_number,policy_status,annual_premium,coverage_limit,deductible,effective_from,effective_to,is_current
+P000015,1,ACTIVE,2192.88,100000.00,1000.00,2024-06-30,2024-09-09,False
+P000015,2,ACTIVE,2523.94,250000.00,500.00,2024-09-09,2025-06-30,False
+P000015,3,EXPIRED,2523.94,250000.00,500.00,2025-06-30,9999-12-31,True

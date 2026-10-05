@@ -1,0 +1,6 @@
+product_line_code,product_line_name,written_premium,earned_premium,paid_loss,incurred_loss,claim_count,incurred_loss_ratio,rolling_12m_loss_ratio,target_loss_ratio,rolling_12m_variance_to_target
+CPROP,Commercial Property,344675.90,332416.75,70344.16,76958.45,13,0.2315,0.3065,0.550,-0.2435
+GLIAB,General Liability,339507.59,331359.83,146719.04,196093.73,29,0.5918,0.3614,0.620,-0.2586
+PAUTO,Personal Auto,180868.94,176160.36,123315.34,130053.62,71,0.7383,0.8827,0.680,0.2027
+HOME,Homeowners,163112.22,156489.45,58184.24,59874.49,36,0.3826,0.4462,0.580,-0.1338
+RENT,Renters,18393.11,17964.08,11123.61,11123.61,27,0.6192,0.2642,0.500,-0.2358
