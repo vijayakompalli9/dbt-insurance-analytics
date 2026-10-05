@@ -1,0 +1,70 @@
+version: 2
+
+models:
+  - name: int_policy_versions
+    description: >
+      One row per policy per attribute-changing event (bind, endorsement,
+      cancellation) with attributes carried forward. Source for the as-of state.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['policy_id', 'version_start_date', 'event_order']
+    columns:
+      - name: policy_event_sk
+        description: Surrogate key of the policy event.
+        data_tests: [unique, not_null]
+      - name: annual_premium
+        description: Annual premium in force from version_start_date.
+        data_tests: [not_null, non_negative]
+      - name: event_type
+        description: BIND, ENDORSEMENT or CANCELLATION.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['BIND', 'ENDORSEMENT', 'CANCELLATION']
+
+  - name: int_policy_state_as_of
+    description: >
+      Policy state as of var('as_of_date') with derived lifecycle status; the
+      relation watched by the snap_policy snapshot.
+    columns:
+      - name: policy_id
+        description: Natural key of the policy.
+        data_tests: [unique, not_null]
+      - name: policy_status
+        description: ACTIVE, CANCELLED or EXPIRED as of the as-of date.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ACTIVE', 'CANCELLED', 'EXPIRED']
+      - name: state_updated_at
+        description: Business timestamp of the latest state change (drives dbt_valid_from).
+        data_tests: [not_null]
+
+  - name: int_premium_earned_monthly
+    description: Written and pro-rata earned premium per installment per calendar month (at most two rows per installment).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['premium_id', 'calendar_month']
+    columns:
+      - name: earned_premium
+        description: Portion of the installment earned in the calendar month.
+        data_tests: [not_null, non_negative]
+
+  - name: int_claim_payment_totals
+    description: Paid-to-date totals per claim split by payment type, up to the as-of date.
+    columns:
+      - name: claim_id
+        description: Claim identifier.
+        data_tests: [unique, not_null]
+
+  - name: int_claims_enriched
+    description: Valid claims (orphans removed) joined to policy attributes and paid-to-date totals.
+    columns:
+      - name: claim_id
+        description: Claim identifier.
+        data_tests: [unique, not_null]
+      - name: incurred_loss
+        description: Net paid to date plus outstanding case reserve.
+        data_tests: [not_null]
